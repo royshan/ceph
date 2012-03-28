@@ -60,7 +60,7 @@ else
 fi
 
 usage_exit() {
-    echo "usage: $0 -a -c ceph.conf [-k adminkeyring] [--mkbtrfs]"
+    echo "usage: $0 -a -c ceph.conf [-k adminkeyring]"
     echo "   to generate a new ceph cluster on all nodes; for advanced usage see man page"
     echo "   ** be careful, this WILL clobber old data; check your ceph.conf carefully **"
     exit
@@ -70,9 +70,7 @@ usage_exit() {
 
 
 allhosts=0
-mkbtrfs=0
 preparemonmap=0
-prepareosdfs=""
 initdaemon=""
 initdaemons=""
 preparemon=0
@@ -108,12 +106,6 @@ case $1 in
 	    preparemonmap=1
             manual_action=1
 	    ;;
-    --prepare-osdfs)
-	    [ -z "$2" ] && usage_exit
-	    shift
-	    prepareosdfs=$1
-            manual_action=1
-	    ;;
     --init-daemon)
 	    [ -z "$2" ] && usage_exit
 	    shift
@@ -129,9 +121,6 @@ case $1 in
     --prepare-mon)
 	    preparemon=1
             manual_action=1
-	    ;;
-    --mkbtrfs)
-	    mkbtrfs=1
 	    ;;
     --no-copy-conf)
 	    nocopyconf=1
@@ -297,58 +286,6 @@ if [ -n "$initlocaldaemons" ]; then
 fi
 
 
-### prepare-osdfs ###
-
-if [ -n "$prepareosdfs" ]; then
-    name=$prepareosdfs
-    type=`echo $name | cut -c 1-3`   # e.g. 'mon', if $name is 'mon1'
-    id=`echo $name | cut -c 4- | sed 's/^\\.//'`
-    name="$type.$id"
-
-    get_conf osd_data "/var/lib/ceph/osd/ceph-$id" "osd data"
-    get_conf osd_journal "$osd_data/journal" "osd journal"
-    get_conf btrfs_path "$osd_data" "btrfs path"  # mount point defaults so osd data
-    get_conf btrfs_devs "" "btrfs devs"
-
-    if [ -z "$btrfs_devs" ]; then
-	echo "no btrfs devs defined for $name"
-	exit 0
-    fi
-
-    first_dev=`echo $btrfs_devs | cut '-d ' -f 1`
-    get_conf btrfs_opt "noatime" "btrfs options"
-    [ -n "$btrfs_opt" ] && btrfs_opt="-o $btrfs_opt"
-    get_conf osd_user "root" "user"
-    
-    if [ -n "$osd_journal" ] && echo "$btrfs_devs" | grep -q -w "$osd_journal" ; then
-	echo "ERROR: osd journal device ($osd_journal) also used by btrfs devs ($btrfs_devs)"
-	exit 1
-    fi
-    
-    test -d $osd_data || mkdir -p $osd_data
-
-    if [ -n "$osd_journal" ]; then
-	test -d $osd_journal || mkdir -p `dirname $osd_journal`
-    fi
-
-    umount $btrfs_path || true
-    for f in $btrfs_devs ; do
-	umount $f || true
-    done
-
-    modprobe btrfs || true
-    mkfs.btrfs $btrfs_devs
-    btrfs device scan || btrfsctl -a
-    sync   # seems to fix problems for some people...
-    mount -t btrfs $btrfs_opt $first_dev $btrfs_path
-    chown $osd_user $btrfs_path
-    chmod +w $btrfs_path
-    
-    exit 0
-fi
-
-
-
 ### prepare-mon ###
 
 if [ $preparemon -eq 1 ]; then
@@ -458,10 +395,6 @@ if [ $allhosts -eq 1 ]; then
 		# also put conf at /etc/ceph/ceph.conf
 		cp $dir/conf /etc/ceph/ceph.conf
 	    fi
-	fi
-	
-	if [ $mkbtrfs -eq 1 ] && [ "$type" = "osd" ]; then
-	    do_root_cmd "$0 -d $rdir --prepare-osdfs $name"
 	fi
 
 	do_root_cmd "$0 -d $rdir --init-daemon $name"
