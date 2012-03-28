@@ -100,8 +100,6 @@ docrun=
 allhosts=0
 debug=0
 monaddr=
-dobtrfs=1
-dobtrfsumount=0
 verbose=0
 
 while echo $1 | grep -q '^-'; do     # FIXME: why not '^-'?
@@ -129,15 +127,6 @@ case $1 in
 	    options="$options $1"
 	    shift
 	    MON_ADDR=$1
-	    ;;
-    --btrfs)
-	    dobtrfs=1
-	    ;;
-    --nobtrfs)
-	    dobtrfs=0
-	    ;;
-    --btrfsumount)
-	    dobtrfsumount=1
 	    ;;
     --conf | -c)
 	    [ -z "$2" ] && usage_exit
@@ -220,13 +209,6 @@ for name in $what; do
     fi
     cmd="$cmd -c $cur_conf"
 
-    if echo $name | grep -q ^osd; then
-	get_conf osd_data "" "osd data"
-	get_conf btrfs_path "$osd_data" "btrfs path"  # mount point defaults so osd data
-	get_conf btrfs_devs "" "btrfs devs"
-	first_dev=`echo $btrfs_devs | cut '-d ' -f 1`
-    fi
-
     # do lockfile, if RH
     get_conf lockfile "/var/lock/subsys/ceph" "lock file"
     lockdir=`dirname $lockfile`
@@ -262,14 +244,6 @@ for name in $what; do
 
 	    cmd="$wrap $cmd $runmode"
 	    
-	    if [ $dobtrfs -eq 1 ] && [ -n "$btrfs_devs" ]; then
-		get_conf pre_mount "true" "pre mount command"
-		get_conf btrfs_opt "noatime" "btrfs options"
-		[ -n "$btrfs_opt" ] && btrfs_opt="-o $btrfs_opt"
-		[ -n "$pre_mount" ] && do_cmd "$pre_mount"
-		echo Mounting Btrfs on $host:$btrfs_path
-		do_root_cmd "modprobe btrfs ; btrfs device scan || btrfsctl -a ; egrep -q '^[^ ]+ $btrfs_path' /proc/mounts || mount -t btrfs $btrfs_opt $first_dev $btrfs_path"
-	    fi
 	    echo Starting Ceph $name on $host...
 	    mkdir -p $RUN_DIR
 	    get_conf pre_start_eval "" "pre start eval"
@@ -289,10 +263,6 @@ for name in $what; do
 	    stop_daemon $name ceph-$type $pid_file
 	    [ -n "$post_stop" ] && do_cmd "$post_stop"
 	    [ -n "$lockfile" ] && [ "$?" -eq 0 ] && rm -f $lockfile
-	    if [ $dobtrfsumount -eq 1 ] && [ -n "$btrfs_devs" ]; then
-		echo Unmounting Btrfs on $host:$btrfs_path
-		do_root_cmd "umount $btrfs_path || true"
-	    fi
 	    ;;
 
 	status)
