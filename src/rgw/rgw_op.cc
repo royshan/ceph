@@ -1178,6 +1178,8 @@ void RGWPutObj::execute()
   bufferlist bl, aclbl;
   map<string, bufferlist> attrs;
   int len;
+  map<string, string>::iterator iter;
+
 
 
   perfcounter->inc(l_rgw_put);
@@ -1272,10 +1274,10 @@ void RGWPutObj::execute()
     attrs[RGW_ATTR_USER_MANIFEST] = manifest_bl;
   }
 
-  if (s->content_type) {
-    bl.clear();
-    bl.append(s->content_type, strlen(s->content_type) + 1);
-    attrs[RGW_ATTR_CONTENT_TYPE] = bl;
+  for (iter = s->generic_attrs.begin(); iter != s->generic_attrs.end(); ++iter) {
+    bufferlist& attrbl = attrs[iter->first];
+    const string& val = iter->second;
+    attrbl.append(val.c_str(), val.size() + 1);
   }
 
   rgw_get_request_metadata(s, attrs);
@@ -1465,10 +1467,11 @@ int RGWCopyObj::init_common()
   attrs[RGW_ATTR_ACL] = aclbl;
   rgw_get_request_metadata(s, attrs);
 
-  if (s->content_type) {
-    bufferlist bl;
-    bl.append(s->content_type, strlen(s->content_type) + 1);
-    attrs[RGW_ATTR_CONTENT_TYPE] = bl;
+  map<string, string>::iterator iter;
+  for (iter = s->generic_attrs.begin(); iter != s->generic_attrs.end(); ++iter) {
+    bufferlist& attrbl = attrs[iter->first];
+    const string& val = iter->second;
+    attrbl.append(val.c_str(), val.size() + 1);
   }
 
   return 0;
@@ -1635,6 +1638,7 @@ void RGWInitMultipart::execute()
   bufferlist aclbl;
   map<string, bufferlist> attrs;
   rgw_obj obj;
+  map<string, string>::iterator iter;
 
   if (get_params() < 0)
     goto done;
@@ -1646,10 +1650,10 @@ void RGWInitMultipart::execute()
 
   attrs[RGW_ATTR_ACL] = aclbl;
 
-  if (s->content_type) {
-    bufferlist bl;
-    bl.append(s->content_type, strlen(s->content_type) + 1);
-    attrs[RGW_ATTR_CONTENT_TYPE] = bl;
+  for (iter = s->generic_attrs.begin(); iter != s->generic_attrs.end(); ++iter) {
+    bufferlist& attrbl = attrs[iter->first];
+    const string& val = iter->second;
+    attrbl.append(val.c_str(), val.size() + 1);
   }
 
   rgw_get_request_metadata(s, attrs);

@@ -4,6 +4,11 @@
 
 #include "rgw_op.h"
 
+
+extern std::map<std::string, std::string> rgw_to_http_attrs;
+
+extern void rgw_rest_init();
+
 extern void rgw_flush_formatter_and_reset(struct req_state *s,
 					 ceph::Formatter *formatter);
 
