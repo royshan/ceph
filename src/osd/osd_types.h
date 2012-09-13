@@ -228,6 +228,8 @@ struct pg_t {
     m_preferred = osd;
   }
 
+  pg_t get_parent() const;
+
   int print(char *o, int maxlen) const;
   bool parse(const char *s);
 
@@ -1435,6 +1437,7 @@ struct pg_missing_t {
   void rm(const std::map<hobject_t, pg_missing_t::item>::iterator &m);
   void got(const hobject_t& oid, eversion_t v);
   void got(const std::map<hobject_t, pg_missing_t::item>::iterator &m);
+  void split_into(pg_t child_pgid, unsigned split_bits, pg_missing_t *omissing);
 
   void clear() {
     missing.clear();

@@ -221,6 +221,15 @@ bool pg_t::is_split(unsigned old_pg_num, unsigned new_pg_num, set<pg_t> *childre
   return split;
 }
 
+pg_t pg_t::get_parent() const
+{
+  unsigned bits = pg_pool_t::calc_bits_of(m_seed);
+  assert(bits);
+  pg_t retval = *this;
+  retval.m_seed &= ~((~0)<<(bits - 1));
+  return retval;
+}
+
 void pg_t::dump(Formatter *f) const
 {
   f->dump_unsigned("pool", m_pool);
@@ -1956,6 +1965,24 @@ void pg_missing_t::got(const std::map<hobject_t, pg_missing_t::item>::iterator &
 {
   rmissing.erase(m->second.need.version);
   missing.erase(m);
+}
+
+void pg_missing_t::split_into(
+  pg_t child_pgid,
+  unsigned split_bits,
+  pg_missing_t *omissing)
+{
+  unsigned mask = ~((~0)<<split_bits);
+  for (map<hobject_t, item>::iterator i = missing.begin();
+       i != missing.end();
+       ) {
+    if ((i->first.hash & mask) == child_pgid.m_seed) {
+      omissing->add(i->first, i->second.need, i->second.have);
+      rm(i++);
+    } else {
+      ++i;
+    }
+  }
 }
 
 // -- pg_create_t --
