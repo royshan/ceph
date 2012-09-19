@@ -310,6 +310,8 @@ librgw_a_SOURCES =  \
 	rgw/rgw_acl.cc \
 	rgw/rgw_acl_s3.cc \
 	rgw/rgw_acl_swift.cc \
+	rgw/rgw_client_io.cc \
+	rgw/rgw_fcgi.cc \
 	rgw/rgw_xml.cc \
 	rgw/rgw_user.cc \
 	rgw/rgw_tools.cc \
