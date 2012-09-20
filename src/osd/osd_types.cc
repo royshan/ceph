@@ -1458,11 +1458,14 @@ bool pg_interval_t::check_new_interval(
   epoch_t last_epoch_clean,
   OSDMapRef osdmap,
   OSDMapRef lastmap,
+  pg_t pgid,
   map<epoch_t, pg_interval_t> *past_intervals,
   std::ostream *out)
 {
   // remember past interval
-  if (new_acting != old_acting || new_up != old_up) {
+  if (new_acting != old_acting || new_up != old_up ||
+      pgid.is_split(lastmap->get_pg_num(pgid.pool()),
+        osdmap->get_pg_num(pgid.pool()), 0)) {
     pg_interval_t& i = (*past_intervals)[same_interval_since];
     i.first = same_interval_since;
     i.last = osdmap->get_epoch() - 1;
