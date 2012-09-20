@@ -644,6 +644,7 @@ protected:
                                         waiting_for_degraded_object;
   map<eversion_t,list<OpRequestRef> > waiting_for_ack, waiting_for_ondisk;
   map<eversion_t,OpRequestRef>   replay_queue;
+  void split_ops(PG *child, unsigned split_bits);
 
   void requeue_object_waiters(map<hobject_t, list<OpRequestRef> >& m);
   void requeue_ops(list<OpRequestRef> &l);
@@ -1604,6 +1605,7 @@ public:
   bool can_discard_request(OpRequestRef op);
 
   bool must_delay_request(OpRequestRef op);
+  static bool split_request(OpRequestRef op, unsigned match, unsigned bits);
   void queue_op(OpRequestRef op);
 
   bool old_peering_msg(epoch_t reply_epoch, epoch_t query_epoch);
