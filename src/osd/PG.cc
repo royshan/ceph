@@ -2011,7 +2011,6 @@ void PG::split_into(pg_t child_pgid, PG *child, unsigned split_bits)
   // History
   child->past_intervals = past_intervals;
 
-  child->osr = osr;
   split_ops(child, split_bits);
 }
 

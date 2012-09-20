@@ -1308,21 +1308,26 @@ PG* OSD::_make_pg(
 }
 
 
-void OSD::add_newly_split_pgs(set<boost::intrusive_ptr<PG> > *pgs)
+void OSD::add_newly_split_pg(PG *pg, PG::RecoveryCtx *rctx)
 {
   epoch_t e(service.get_osdmap()->get_epoch());
-  for (set<boost::intrusive_ptr<PG> >::iterator i = pgs->begin();
-       i != pgs->end();
-       pgs->erase(i++)) {
-    pg_map[(*i)->info.pgid] = &**i;
-    (*i)->get();  // For pg_map
-    wake_pg_waiters((*i)->info.pgid);
-    {
-      (*i)->lock();
-      (*i)->queue_null(e, e);
-      (*i)->unlock();
-    }
+  pg->get();  // For pg_map
+  pg_map[pg->info.pgid] = pg;
+  {
+    pg->lock();
+    dout(10) << "Adding newly split pg " << *pg << dendl;
+    vector<int> up, acting;
+    pg->get_osdmap()->pg_to_up_acting_osds(pg->info.pgid, up, acting);
+    int role = pg->get_osdmap()->calc_pg_role(service.whoami, acting);
+    pg->set_role(role);
+    service.reg_last_pg_scrub(pg->info.pgid,
+			      pg->info.history.last_scrub_stamp);
+    pg->handle_loaded(rctx);
+    pg->write_if_dirty(*(rctx->transaction));
+    pg->queue_null(e, e);
+    pg->unlock();
   }
+  wake_pg_waiters(pg->info.pgid);
 }
 
 PG *OSD::_create_lock_pg(
@@ -4371,16 +4376,6 @@ void OSD::split_pgs(
       child,
       split_bits);
 
-    vector<int> up, acting;
-    nextmap->pg_to_up_acting_osds(*i, up, acting);
-    int role = nextmap->calc_pg_role(service.whoami, acting);
-    child->set_role(role);
-
-    service.reg_last_pg_scrub(child->info.pgid,
-			      child->info.history.last_scrub_stamp);
-    child->handle_loaded(rctx);
-    vector<int> newup, newacting;
-    nextmap->pg_to_up_acting_osds(child->info.pgid, newup, newacting);
     child->write_if_dirty(*(rctx->transaction));
     child->unlock();
   }
@@ -5692,6 +5687,27 @@ void OSDService::queue_for_op(PG *pg)
   op_wq.queue(pg);
 }
 
+struct C_CompleteSplits : public Context {
+  OSD *osd;
+  set<boost::intrusive_ptr<PG> > pgs;
+  C_CompleteSplits(OSD *osd, const set<boost::intrusive_ptr<PG> > &in)
+    : osd(osd), pgs(in) {}
+  void finish(int r) {
+    Mutex::Locker l(osd->osd_lock);
+    PG::RecoveryCtx rctx = osd->create_context();
+    set<pg_t> to_complete;
+    for (set<boost::intrusive_ptr<PG> >::iterator i = pgs.begin();
+	 i != pgs.end();
+	 ++i) {
+      osd->add_newly_split_pg(&**i, &rctx);
+      osd->dispatch_context_transaction(rctx, &**i);
+      to_complete.insert((*i)->info.pgid);
+    }
+    osd->service.complete_split(to_complete);
+    osd->dispatch_context(rctx, 0, osd->service.get_osdmap());
+  }
+};
+
 void OSD::process_peering_events(const list<PG*> &pgs)
 {
   bool need_up_thru = false;
@@ -5719,19 +5735,12 @@ void OSD::process_peering_events(const list<PG*> &pgs)
     same_interval_since = MAX(pg->info.history.same_interval_since,
 			      same_interval_since);
     pg->write_if_dirty(*rctx.transaction);
+    if (split_pgs.size()) {
+      rctx.on_applied->add(new C_CompleteSplits(this, split_pgs));
+      split_pgs.clear();
+    }
     dispatch_context_transaction(rctx, pg);
     pg->unlock();
-    if (split_pgs.size()) {
-      Mutex::Locker l(osd_lock);
-      add_newly_split_pgs(&split_pgs);
-      set<pg_t> to_complete;
-      for (set<boost::intrusive_ptr<PG> >::iterator i = split_pgs.begin();
-	   i != split_pgs.end();
-	   ++i) {
-	to_complete.insert((*i)->info.pgid);
-      }
-      service.complete_split(to_complete);
-    }
   }
   if (need_up_thru)
     queue_want_up_thru(same_interval_since);
