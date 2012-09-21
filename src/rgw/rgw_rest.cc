@@ -676,9 +676,6 @@ int RGWHandler_ObjStore::read_permissions(RGWOp *op_obj)
 
 void RGWRESTMgr::register_resource(string resource, RGWRESTMgr *mgr)
 {
-  if (resource[resource.size() - 1] != '/')
-    resource.append("/");
-
   resource_mgrs[resource] = mgr;
   resources_by_size[resource.size()] = resource;
 }
@@ -691,14 +688,16 @@ void RGWRESTMgr::register_default_mgr(RGWRESTMgr *mgr)
 RGWRESTMgr *RGWRESTMgr::get_resource_mgr(struct req_state *s, const string& uri)
 {
   if (resources_by_size.empty())
-    return NULL;
+    return this;
 
   map<size_t, string>::iterator iter = resources_by_size.end();
   do {
     --iter;
     string& resource = iter->second;
-    if (uri.compare(0, iter->first, resource) == 0) {
-      string suffix = resource.substr(resource.size() + 1);
+    if (uri.compare(0, iter->first, resource) == 0 &&
+	(resource.size() == iter->first ||
+	 resource[iter->first] == '/')) {
+      string suffix = uri.substr(iter->first);
       return resource_mgrs[resource]->get_resource_mgr(s, suffix);
     }
   } while (iter != resources_by_size.begin());
@@ -767,6 +766,10 @@ RGWHandler *RGWREST::get_handler(struct req_state *s, RGWClientIO *cio,
   }
 
   handler = m->get_handler(s);
+  if (!handler) {
+    *init_error = -ERR_METHOD_NOT_ALLOWED;
+    return NULL;
+  }
   *init_error = handler->init(s, cio);
   if (*init_error < 0)
     return NULL;
