@@ -5782,7 +5782,12 @@ void OSD::dequeue_op(PG *pg)
   }
 
   pg->lockq();
-  assert(!pg->op_queue.empty());
+  if (pg->op_queue.empty()) {
+    pg->unlockq();
+    pg->unlock();
+    pg->put();
+    return;
+  }
   op = pg->op_queue.front();
   pg->op_queue.pop_front();
   pg->unlockq();
