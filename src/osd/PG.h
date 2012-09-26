@@ -779,6 +779,7 @@ public:
   void finish_recovery_op(const hobject_t& soid, bool dequeue=false);
 
   void split_into(pg_t child_pgid, PG *child, unsigned split_bits);
+  virtual void _split_into(pg_t child_pgid, PG *child, unsigned split_bits) = 0;
 
   loff_t get_log_write_pos() {
     return 0;

@@ -1900,45 +1900,6 @@ static void split_list(
   }
 }
 
-static void split_map(
-  map<hobject_t, list<OpRequestRef> > *from,
-  map<hobject_t, list<OpRequestRef> > *to,
-  unsigned match,
-  unsigned bits)
-{
-  for (map<hobject_t, list<OpRequestRef> >::iterator i = from->begin();
-       i != from->end();
-       ) {
-    if ((i->first.hash & ~((~0)<<bits)) == match) {
-      to->insert(*i);
-      from->erase(i++);
-    } else {
-      ++i;
-    }
-  }
-}
-
-static void split_map(
-  map<eversion_t, list<OpRequestRef> > *from,
-  map<eversion_t, list<OpRequestRef> > *to,
-  unsigned match,
-  unsigned bits)
-{
-  for (map<eversion_t, list<OpRequestRef> >::iterator i = from->begin();
-       i != from->end();
-       ) {
-    split_list(&(i->second), &((*to)[i->first]), match, bits);
-    if ((*to)[i->first].empty()) {
-      to->erase(i->first);
-    }
-    if (i->second.empty()) {
-      from->erase(i++);
-    } else {
-      ++i;
-    }
-  }
-}
-
 static void split_replay_queue(
   map<eversion_t, OpRequestRef> *from,
   map<eversion_t, OpRequestRef> *to,
@@ -1959,16 +1920,13 @@ static void split_replay_queue(
 
 void PG::split_ops(PG *child, unsigned split_bits) {
   unsigned match = child->info.pgid.m_seed;
-  split_list(&waiting_for_map, &(child->waiting_for_map), match, split_bits);
-  split_list(&waiting_for_active, &(child->waiting_for_active), match, split_bits);
-  split_list(&waiting_for_all_missing, &(child->waiting_for_all_missing),
-    match, split_bits);
-  split_map(&waiting_for_missing_object, &(child->waiting_for_missing_object),
-    match, split_bits);
-  split_map(&waiting_for_degraded_object, &(child->waiting_for_degraded_object),
-    match, split_bits);
-  split_map(&waiting_for_ack, &(child->waiting_for_ack), match, split_bits);
-  split_map(&waiting_for_ondisk, &(child->waiting_for_ondisk), match, split_bits);
+  assert(waiting_for_map.empty());
+  assert(waiting_for_active.empty());
+  assert(waiting_for_all_missing.empty());
+  assert(waiting_for_missing_object.empty());
+  assert(waiting_for_degraded_object.empty());
+  assert(waiting_for_ack.empty());
+  assert(waiting_for_ondisk.empty());
   split_replay_queue(&replay_queue, &(child->replay_queue), match, split_bits);
   split_list(&op_queue, &(child->waiting_for_active), match, split_bits);
 }
@@ -2012,6 +1970,7 @@ void PG::split_into(pg_t child_pgid, PG *child, unsigned split_bits)
   child->past_intervals = past_intervals;
 
   split_ops(child, split_bits);
+  _split_into(child_pgid, child, split_bits);
 }
 
 void PG::defer_recovery()
