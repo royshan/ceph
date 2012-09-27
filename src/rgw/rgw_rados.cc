@@ -3139,7 +3139,7 @@ int RGWRados::process_intent_log(rgw_bucket& bucket, string& oid,
     }
     switch (entry.intent) {
     case DEL_OBJ:
-      if (!flags & I_DEL_OBJ) {
+      if (!(flags & I_DEL_OBJ)) {
         complete = false;
         break;
       }
@@ -3150,7 +3150,7 @@ int RGWRados::process_intent_log(rgw_bucket& bucket, string& oid,
       }
       break;
     case DEL_DIR:
-      if (!flags & I_DEL_DIR) {
+      if (!(flags & I_DEL_DIR)) {
         complete = false;
         break;
       } else {
