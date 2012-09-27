@@ -682,11 +682,6 @@ int RGWRados::create_bucket(string& owner, rgw_bucket& bucket,
       bucket.pool = bucket.name;
     }
   } else {
-    if (ret < 0) {
-      ldout(cct, 0) << "ERROR: failed to store bucket info" << dendl;
-      return ret;
-    }
-
     ret = select_bucket_placement(bucket.name, bucket);
     if (ret < 0)
       return ret;
