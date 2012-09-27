@@ -443,7 +443,7 @@ done:
   return ret;
 }
 
-static void remove_old_indexes(RGWUserInfo& old_info, RGWUserInfo new_info)
+static void remove_old_indexes(RGWUserInfo& old_info, RGWUserInfo& new_info)
 {
   int ret;
   bool success = true;
