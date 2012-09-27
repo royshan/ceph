@@ -322,8 +322,10 @@ int RGWRados::log_list_init(const string& prefix, RGWAccessHandle *handle)
 {
   log_list_state *state = new log_list_state;
   int r = rados->ioctx_create(RGW_LOG_POOL_NAME, state->io_ctx);
-  if (r < 0)
+  if (r < 0) {
+    delete state;
     return r;
+  }
   state->prefix = prefix;
   state->obit = state->io_ctx.objects_begin();
   *handle = (RGWAccessHandle)state;
@@ -373,8 +375,10 @@ int RGWRados::log_show_init(const string& name, RGWAccessHandle *handle)
 {
   log_show_state *state = new log_show_state;
   int r = rados->ioctx_create(RGW_LOG_POOL_NAME, state->io_ctx);
-  if (r < 0)
+  if (r < 0) {
+    delete state;
     return r;
+  }
   state->name = name;
   *handle = (RGWAccessHandle)state;
   return 0;
