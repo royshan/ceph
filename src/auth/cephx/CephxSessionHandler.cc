@@ -45,7 +45,7 @@ int CephxSessionHandler::sign_message(Message *m)
 
   ldout(cct, 10) <<  "sign_message: seq # " << header.seq << " CRCs are: header " << header.crc << " front " << en_footer.front_crc << " middle " << en_footer.middle_crc << " data " << en_footer.data_crc  << "; key = " << key << dendl;
 
-  encode_encrypt(bl_plaintext, key, bl_encrypted,error);
+  encode_encrypt(cct,bl_plaintext, key, bl_encrypted,error);
   if (!error.empty()) {
     ldout(cct, 0) << "error encrypting message signature: " << error << dendl;
     ldout(cct, 0) << "no signature put on message" << dendl;
@@ -107,7 +107,7 @@ int CephxSessionHandler::check_message_signature(Message *m)
 
   // Encrypt the buffer containing the checksums to calculate the signature. PLR
 
-  encode_encrypt(bl_plaintext, key, bl_ciphertext, sig_error);
+  encode_encrypt(cct,bl_plaintext, key, bl_ciphertext, sig_error);
 
   // If the encryption was error-free, grab the signature from the message and compare it. PLR
 

@@ -1109,7 +1109,6 @@ libcommon_files = \
 	./ceph_ver.c \
 	auth/AuthAuthorizeHandler.cc \
 	auth/AuthClientHandler.cc \
-	auth/AuthSupported.cc \
 	auth/AuthSessionHandler.cc \
 	auth/AuthMethodList.cc \
 	auth/cephx/CephxAuthorizeHandler.cc \
