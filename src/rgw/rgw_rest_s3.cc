@@ -376,7 +376,7 @@ int RGWPostObj_ObjStore_S3::get_form_head()
   if (content_length == 0)
     return -ENODATA;
 
-  header_length = -s->bytes_received;
+  size_t start_receive = s->bytes_received;
   
   // get the part boundary
   string content_string = s->env->get("CONTENT_TYPE");
@@ -482,7 +482,7 @@ int RGWPostObj_ObjStore_S3::get_form_head()
     }
   } while (!data_pending);
 
-  header_length += s->bytes_received;
+  header_length += (s->bytes_received - start_receive);
   content_length -= header_length;
 
   free(buf);
