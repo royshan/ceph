@@ -1663,6 +1663,7 @@ noinst_HEADERS = \
         messages/MOSDPGRemove.h\
 	messages/MOSDPGScan.h\
         messages/MBackfillReserve.h\
+        messages/MRecoveryReserve.h\
         messages/MOSDPGTemp.h\
         messages/MOSDPGTrim.h\
         messages/MOSDPing.h\
