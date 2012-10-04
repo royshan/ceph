@@ -95,7 +95,7 @@ struct post_form_part {
 
 struct ltstr_nocase
 {
-  bool operator()(const string& s1, const string& s2)
+  bool operator()(const string& s1, const string& s2) const
   {
     return strcasecmp(s1.c_str(), s2.c_str()) < 0;
   }
@@ -104,7 +104,7 @@ struct ltstr_nocase
 class RGWPostObj_ObjStore_S3 : public RGWPostObj_ObjStore {
   string boundary;
   bufferlist in_data;
-  map<string, post_form_part, ltstr_nocase> parts;  
+  map<string, post_form_part, const ltstr_nocase> parts;  
 
   int read_with_boundary(bufferlist& bl, uint64_t max, bool check_eol,
                          bool *reached_boundary,
