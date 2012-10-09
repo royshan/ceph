@@ -784,7 +784,6 @@ int RGWPostObj_ObjStore_S3::get_policy()
 {
   bufferlist encoded_policy;
   if (part_bl("policy", &encoded_policy)) {
-    bufferlist decoded_policy;
 
     // check that the signature matches the encoded policy
     string s3_access_key;
@@ -813,7 +812,6 @@ int RGWPostObj_ObjStore_S3::get_policy()
 
     char calc_signature[CEPH_CRYPTO_HMACSHA1_DIGESTSIZE];
 
-    ldout(s->cct, 0) << "secret.size()=" << s3_secret_key.size() << " policy.len=" << len << dendl;
     calc_hmac_sha1(s3_secret_key.c_str(), s3_secret_key.size(), encoded_policy.c_str(), encoded_policy.length(), calc_signature);
     bufferlist encoded_hmac;
     bufferlist raw_hmac;
@@ -828,13 +826,17 @@ int RGWPostObj_ObjStore_S3::get_policy()
       return -EINVAL;
     }
     ldout(s->cct, 0) << "Successful Signature Verification!" << dendl;
-
+    bufferlist decoded_policy;
     try {
-      encoded_policy.decode_base64(decoded_policy);
+      decoded_policy.decode_base64(encoded_policy);
     } catch (buffer::error& err) {
       ldout(s->cct, 0) << "failed to decode_base64 policy" << dendl;
       return -EINVAL;
     }
+
+    decoded_policy.append('\0'); // NULL terminate
+
+    ldout(s->cct, 0) << "POST policy: " << decoded_policy.c_str() << dendl;
 
     RGWPolicy post_policy;
     int r = post_policy.from_json(decoded_policy);
