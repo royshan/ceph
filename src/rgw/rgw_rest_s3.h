@@ -118,6 +118,7 @@ class RGWPostObj_ObjStore_S3 : public RGWPostObj_ObjStore {
   int read_form_part_header(struct post_form_part *part,
                             bool *done);
   bool part_str(const string& name, string *val);
+  bool part_bl(const string& name, bufferlist *pbl);
 
   int get_policy();
 public:

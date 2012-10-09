@@ -8,6 +8,7 @@
 #include "rgw_rest.h"
 #include "rgw_rest_s3.h"
 #include "rgw_acl.h"
+#include "rgw_policy_s3.h"
 
 #include "common/armor.h"
 
@@ -655,6 +656,16 @@ bool RGWPostObj_ObjStore_S3::part_str(const string& name, string *val)
   return true;
 }
 
+bool RGWPostObj_ObjStore_S3::part_bl(const string& name, bufferlist *pbl)
+{
+  map<string, struct post_form_part, ltstr_nocase>::iterator iter = parts.find(name);
+  if (iter == parts.end())
+    return false;
+
+  *pbl = iter->second.data;
+  return true;
+}
+
 int RGWPostObj_ObjStore_S3::get_params()
 {
   string temp_line;
@@ -769,14 +780,11 @@ int RGWPostObj_ObjStore_S3::get_params()
   return 0;
 }
 
-int RGWPostObj_REST_S3::get_policy()
+int RGWPostObj_ObjStore_S3::get_policy()
 {
-  string encoded_policy_str;
-  if (part_str("policy", &encoded_policy_str)) {
+  bufferlist encoded_policy;
+  if (part_bl("policy", &encoded_policy)) {
     bufferlist decoded_policy;
-    bufferlist encoded_policy;
-
-    encoded_policy.append(encoded_policy_str.c_str());
 
     // check that the signature matches the encoded policy
     string s3_access_key;
@@ -804,13 +812,16 @@ int RGWPostObj_REST_S3::get_policy()
     string s3_secret_key = (iter->second).key;
 
     char calc_signature[CEPH_CRYPTO_HMACSHA1_DIGESTSIZE];
-    calc_hmac_sha1(s3_secret_key.c_str(), s3_secret_key.size(), encoded_policy_str.c_str(), encoded_policy_str.size(), calc_signature);
+
+    ldout(s->cct, 0) << "secret.size()=" << s3_secret_key.size() << " policy.len=" << len << dendl;
+    calc_hmac_sha1(s3_secret_key.c_str(), s3_secret_key.size(), encoded_policy.c_str(), encoded_policy.length(), calc_signature);
     bufferlist encoded_hmac;
     bufferlist raw_hmac;
-    raw_hmac.append(calc_signature);
+    raw_hmac.append(calc_signature, CEPH_CRYPTO_HMACSHA1_DIGESTSIZE);
     raw_hmac.encode_base64(encoded_hmac);
+    encoded_hmac.append((char)0); /* null terminate */
 
-    if (strcmp(encoded_hmac.c_str(), signature_str.c_str()) != 0) {
+    if (signature_str.compare(encoded_hmac.c_str()) != 0) {
       ldout(s->cct, 0) << "Signature verification failed!" << dendl;
       ldout(s->cct, 0) << "expected: " << signature_str.c_str() << dendl;
       ldout(s->cct, 0) << "got: " << encoded_hmac.c_str() << dendl;
@@ -818,7 +829,17 @@ int RGWPostObj_REST_S3::get_policy()
     }
     ldout(s->cct, 0) << "Successful Signature Verification!" << dendl;
 
-    encoded_policy.decode_base64(decoded_policy);
+    try {
+      encoded_policy.decode_base64(decoded_policy);
+    } catch (buffer::error& err) {
+      ldout(s->cct, 0) << "failed to decode_base64 policy" << dendl;
+      return -EINVAL;
+    }
+
+    RGWPolicy post_policy;
+    int r = post_policy.from_json(decoded_policy);
+    if (r < 0)
+      return r;
 
   } else {
     ldout(s->cct, 0) << "No attached policy found!" << dendl;
