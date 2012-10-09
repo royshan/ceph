@@ -703,6 +703,9 @@ int RGWPostObj_ObjStore_S3::get_params()
     }
   }
 
+  ldout(s->cct, 20) << "adding bucket to policy env: " << s->bucket.name << dendl;
+  env.add_var("bucket", s->bucket.name);
+
   map<string, string>::iterator iter = params.find("boundary");
   if (iter == params.end())
     return -EINVAL;
@@ -718,13 +721,13 @@ int RGWPostObj_ObjStore_S3::get_params()
     if (r < 0)
       return r;
     
-    if (s->cct->_conf->subsys.should_gather(ceph_subsys_rgw, 20)) {
+    map<string, struct post_part_field>::iterator piter;
+    for (piter = part.fields.begin(); piter != part.fields.end(); ++piter) {
       ldout(s->cct, 20) << "read part header: name=" << part.name << " content_type=" << part.content_type << dendl;
-      ldout(s->cct, 20) << "params:" << dendl;
-      map<string, struct post_part_field>::iterator piter;
-      for (piter = part.fields.begin(); piter != part.fields.end(); ++piter) {
-        ldout(s->cct, 20) << "name=" << piter->first << dendl;
-        ldout(s->cct, 20) << "val=" << piter->second.val << dendl;
+      ldout(s->cct, 20) << "name=" << piter->first << dendl;
+      ldout(s->cct, 20) << "val=" << piter->second.val << dendl;
+      if (s->cct->_conf->subsys.should_gather(ceph_subsys_rgw, 20)) {
+        ldout(s->cct, 20) << "params:" << dendl;
         map<string, string>& params = piter->second.params;
         for (iter = params.begin(); iter != params.end(); ++iter) {
           ldout(s->cct, 20) << " " << iter->first << " -> " << iter->second << dendl;
@@ -747,12 +750,15 @@ int RGWPostObj_ObjStore_S3::get_params()
       return -EINVAL;
     }
     parts[part.name] = part;
+    string part_str(part.data.c_str(), part.data.length());
+    env.add_var(part.name, part_str);
   } while (!done);
 
   if (!part_str("key", &s->object_str))
     return -EINVAL;
 
   part_str("Content-Type", &content_type);
+  env.add_var("Content-Type", content_type);
 
   map<string, struct post_form_part, ltstr_nocase>::iterator piter = parts.upper_bound(RGW_AMZ_META_PREFIX);
   for (; piter != parts.end(); ++piter) {
@@ -783,6 +789,8 @@ int RGWPostObj_ObjStore_S3::get_params()
 int RGWPostObj_ObjStore_S3::get_policy()
 {
   bufferlist encoded_policy;
+  string uid;
+
   if (part_bl("policy", &encoded_policy)) {
 
     // check that the signature matches the encoded policy
@@ -840,21 +848,30 @@ int RGWPostObj_ObjStore_S3::get_policy()
 
     RGWPolicy post_policy;
     int r = post_policy.from_json(decoded_policy);
-    if (r < 0)
-      return r;
+    if (r < 0) {
+      ldout(s->cct, 0) << "failed to parse policy" << dendl;
+      return -EINVAL;
+    }
 
+    if (!post_policy.check(&env)) {
+      ldout(s->cct, 0) << "policy check failed" << dendl;
+      return -EINVAL;
+    }
+
+    s->user = user_info;
   } else {
     ldout(s->cct, 0) << "No attached policy found!" << dendl;
-    string canned_acl;
-    part_str("acl", &canned_acl);
-
-    RGWAccessControlPolicy_S3 s3policy(s->cct);
-    ldout(s->cct, 20) << "canned_acl=" << canned_acl << dendl;
-    if (!s3policy.create_canned(s->user.user_id, "", canned_acl))
-      return -EINVAL;
-
-    policy = s3policy;
   }
+
+  string canned_acl;
+  part_str("acl", &canned_acl);
+
+  RGWAccessControlPolicy_S3 s3policy(s->cct);
+  ldout(s->cct, 20) << "canned_acl=" << canned_acl << dendl;
+  if (!s3policy.create_canned(s->user.user_id, "", canned_acl))
+    return -EINVAL;
+
+  policy = s3policy;
 
   return 0;
 }

@@ -4,6 +4,11 @@
 #include "rgw_policy_s3.h"
 #include "rgw_json.h"
 
+#include "rgw_common.h"
+
+
+#define dout_subsys ceph_subsys_rgw
+
 
 class RGWPolicyCondition {
 protected:
@@ -24,6 +29,7 @@ public:
      string first, second;
      env->get_value(v1, first);
      env->get_value(v2, second);
+     dout(1) << "policy condition check " << v1 << " [" << first << "] " << v2 << " [" << second << "]" << dendl;
      return check(first, second);
   }
 
@@ -40,7 +46,7 @@ protected:
 class RGWPolicyCondition_StrStartsWith : public RGWPolicyCondition {
 protected:
   bool check(const string& first, const string& second) {
-    return first.compare(0, first.size(), second) == 0;
+    return first.compare(0, second.size(), second) == 0;
   }
 };
 
@@ -101,21 +107,27 @@ int RGWPolicy::add_condition(const string& op, const string& first, const string
 bool RGWPolicy::check(RGWPolicyEnv *env)
 {
   list<pair<string, string> >::iterator viter;
-  for (viter = var_checks.begin(); viter == var_checks.end(); ++viter) {
+  for (viter = var_checks.begin(); viter != var_checks.end(); ++viter) {
     pair<string, string>& p = *viter;
     const string& name = p.first;
     const string& check_val = p.second;
     string val;
-    env->get_value(name, val); // ignore ret value
-    if (val.compare(check_val) != 0)
+    if (!env->get_var(name, val))
       return false;
+
+    dout(20) << "comparing " << name << " [" << val << "], " << check_val << dendl;
+    if (val.compare(check_val) != 0) {
+      dout(1) << "policy check failed, val=" << val << " != " << check_val << dendl;
+      return false;
+    }
   }
 
   list<RGWPolicyCondition *>::iterator citer;
   for (citer = conditions.begin(); citer != conditions.end(); ++citer) {
     RGWPolicyCondition *cond = *citer;
-    if (!cond->check(env))
+    if (!cond->check(env)) {
       return false;
+    }
   }
   return true;
 }
@@ -125,7 +137,8 @@ int RGWPolicy::from_json(bufferlist& bl)
 {
   RGWJSONParser parser;
 
-  parser.parse(bl.c_str(), bl.length());
+  if (!parser.parse(bl.c_str(), bl.length()))
+    return -EINVAL;
 
   JSONObjIter iter = parser.find_first("conditions");
   if (iter.end())
@@ -136,8 +149,8 @@ int RGWPolicy::from_json(bufferlist& bl)
   iter = obj->find_first();
   for (; !iter.end(); ++iter) {
     JSONObj *child = *iter;
-    cout << "is_object=" << child->is_object() << endl;
-    cout << "is_array=" << child->is_array() << endl;
+    dout(20) << "is_object=" << child->is_object() << dendl;
+    dout(20) << "is_array=" << child->is_array() << dendl;
     if (child->is_array()) {
       JSONObjIter aiter = child->find_first();
       vector<string> v;
@@ -146,7 +159,7 @@ int RGWPolicy::from_json(bufferlist& bl)
 	JSONObj *o = *aiter;
         v.push_back(o->get_data());
       }
-      if (i !=3 || !aiter.end())  /* we expect exactly 3 arguments here */
+      if (i != 3 || !aiter.end())  /* we expect exactly 3 arguments here */
         return -EINVAL;
       add_condition(v[0], v[1], v[2]);
     } else {
