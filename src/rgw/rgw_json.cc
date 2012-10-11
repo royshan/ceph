@@ -9,60 +9,6 @@
 using namespace std;
 using namespace json_spirit;
 
-static bool contains_mixed_elements(Array a)
-{
-  int array_size = a.size();
-  if (array_size == 0)
-    return false;
-
-  int first_type = a[0].type();
-  for (int i = 1; i < array_size; i++) {
-    int test_type = a[i].type();
-    if (test_type != first_type)
-      return true;
-  }
-
-  return false;
-}
-
-static bool has_children(Value v)
-{
-  int value_type = v.type();
-
-  if (value_type == obj_type ) {
-    return true;
-  } else if (value_type != array_type) {
-    return false;
-  }
-
-  Array temp_array = v.get_array();
-  int first_type;
-  Value first_value;
-
-  do {
-    if (temp_array.size() == 0)
-      return false;
-
-    /*
-     * if the array is heterogeneous then we want
-     * to stop processing now
-     */
-    if (contains_mixed_elements(temp_array))
-      return false;
-
-    first_value = temp_array[0];
-    first_type = first_value.type();
-
-    if (first_type == obj_type)
-      return true;
-    else if (first_type == array_type)
-      temp_array = first_value.get_array();
-
-  } while (first_type == array_type);
-
-  return false;
-}
-
 JSONObjIter::JSONObjIter()
 {
 }
@@ -170,7 +116,7 @@ void JSONObj::handle_value(Value v)
     Array temp_array = v.get_array();
     Value value;
 
-    for (int j = 0; j < temp_array.size(); j++) {
+    for (unsigned j = 0; j < temp_array.size(); j++) {
       Value cur = temp_array[j];
       
       if (cur.type() == obj_type) {

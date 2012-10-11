@@ -41,8 +41,6 @@ protected:
   string name; // corresponds to obj_type in XMLObj
   Value data;
   string data_string;
-  multimap<string, JSONObj *> children;
-  map<string, string> attr_map;
   void handle_value(Value v);
 
 public:
@@ -67,6 +65,10 @@ public:
   bool is_array();
   bool is_object();
   vector<string> get_array_elements();
+
+private:
+  multimap<string, JSONObj *> children;
+  map<string, string> attr_map;
 };
 
 class RGWJSONParser : public JSONObj
@@ -86,10 +88,11 @@ public:
   void set_failure() { success = false; }
 
 private:
+  multimap<string, JSONObj *> children;
+  map<string, string> attr_map;
   string json_buffer;
   bool success;
 };
-
 
 
 #endif
