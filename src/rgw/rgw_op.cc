@@ -1380,7 +1380,6 @@ void RGWPostObj::execute()
 
 done:
   dispose_processor(processor);
-  send_response();
 }
 
 
