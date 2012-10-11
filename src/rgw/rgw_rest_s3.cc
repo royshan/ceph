@@ -804,10 +804,8 @@ int RGWPostObj_ObjStore_S3::get_params()
   if (r < 0)
     return r;
 
-  if (post_policy.min_length > -1 && post_policy.max_length > -1) {
-    min_allowable_content_length = post_policy.min_length;
-    max_allowable_content_length = post_policy.max_length;
-  }
+  min_len = post_policy.min_length;
+  max_len = post_policy.max_length;
 
   return 0;
 }

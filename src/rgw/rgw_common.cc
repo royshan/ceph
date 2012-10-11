@@ -219,7 +219,7 @@ int parse_time(const char *time_str, time_t *time)
   return 0;
 }
 
-int parse_date(string& date, uint64_t *epoch, string *out_date, string *out_time)
+int parse_date(const string& date, uint64_t *epoch, string *out_date, string *out_time)
 {
   struct tm tm;
 

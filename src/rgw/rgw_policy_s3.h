@@ -25,20 +25,19 @@ class RGWPolicyCondition;
 
 class RGWPolicy {
   uint64_t expires;
+  string expiration_str;
   std::list<RGWPolicyCondition *> conditions;
   std::list<pair<std::string, std::string> > var_checks;
   std::map<std::string, bool, ltstr_nocase> checked_vars;
 
 public:
-  int min_length;
-  int max_length;
+  uint64_t min_length;
+  uint64_t max_length;
 
-  RGWPolicy() : expires(0), min_length(-1), max_length(-1) {}
+  RGWPolicy() : expires(0), min_length(0), max_length((uint64_t)-1) {}
   ~RGWPolicy();
 
-  uint64_t get_current_epoch();
-  void set_expires(utime_t& e);
-  void set_expires(string& e);
+  int set_expires(const string& e);
 
   void set_var_checked(const std::string& var) {
     checked_vars[var] = true;

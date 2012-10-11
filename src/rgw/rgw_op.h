@@ -310,8 +310,8 @@ class RGWPostObj : public RGWOp {
   friend class RGWPutObjProcessor;
 
 protected:
-  int min_allowable_content_length;
-  int max_allowable_content_length;
+  int min_len;
+  int max_len;
   int ret;
   int len;
   off_t ofs;

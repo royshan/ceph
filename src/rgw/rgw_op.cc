@@ -1357,12 +1357,16 @@ void RGWPostObj::execute()
 
      ofs += len;
 
-     if (ofs > max_allowable_content_length)
+     if (ofs > max_len) {
+       ret = -ERR_TOO_LARGE;
        goto done;
+     }
    }
 
-  if (len < min_allowable_content_length)
+  if (len < min_len) {
+    ret = -ERR_TOO_SMALL;
     goto done;
+  }
 
   s->obj_size = ofs;
 
