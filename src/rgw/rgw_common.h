@@ -1026,6 +1026,7 @@ static inline const char *rgw_obj_category_name(RGWObjCategory category)
 /** time parsing */
 extern int parse_time(const char *time_str, time_t *time);
 extern bool parse_rfc2616(const char *s, struct tm *t);
+extern bool parse_iso8601(const char *s, struct tm *t);
 extern int parse_date(const string& date, uint64_t *epoch, string *out_date = NULL, string *out_time = NULL);
 
 /** Check if the req_state's user has the necessary permissions

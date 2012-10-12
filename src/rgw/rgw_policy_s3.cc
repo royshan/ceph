@@ -107,9 +107,11 @@ RGWPolicy::~RGWPolicy()
 
 int RGWPolicy::set_expires(const string& e)
 {
-  int r = parse_date(e, &expires);
-  if (r < 0)
-    return r;
+  struct tm t;
+  if (!parse_iso8601(e.c_str(), &t))
+      return -EINVAL;
+
+  expires = timegm(&t);
 
   return 0;
 }
@@ -150,13 +152,14 @@ int RGWPolicy::add_condition(const string& op, const string& first, const string
   return 0;
 }
 
-bool RGWPolicy::check(RGWPolicyEnv *env)
+int RGWPolicy::check(RGWPolicyEnv *env)
 {
-  uint64_t current_epoch = ceph_clock_now(NULL).epoch();
-  if (expires <= current_epoch) {
+  uint64_t now = ceph_clock_now(NULL).sec();
+  if (expires <= now) {
     dout(0) << "NOTICE: policy calculated as expired: " << expiration_str << dendl;
-    return -EINVAL; // change to condition about expired policy following S3
+    return -EACCES; // change to condition about expired policy following S3
   }
+dout(0) << __FILE__ << ":" << __LINE__ << " expires=" << expires << " now=" << now << dendl;
 
   list<pair<string, string> >::iterator viter;
   for (viter = var_checks.begin(); viter != var_checks.end(); ++viter) {
@@ -165,14 +168,14 @@ bool RGWPolicy::check(RGWPolicyEnv *env)
     const string& check_val = p.second;
     string val;
     if (!env->get_var(name, val))
-      return false;
+      return -EINVAL;
 
     set_var_checked(name);
 
     dout(20) << "comparing " << name << " [" << val << "], " << check_val << dendl;
     if (val.compare(check_val) != 0) {
       dout(1) << "policy check failed, val=" << val << " != " << check_val << dendl;
-      return false;
+      return -EINVAL;
     }
   }
 
@@ -180,15 +183,15 @@ bool RGWPolicy::check(RGWPolicyEnv *env)
   for (citer = conditions.begin(); citer != conditions.end(); ++citer) {
     RGWPolicyCondition *cond = *citer;
     if (!cond->check(env, checked_vars)) {
-      return false;
+      return -EINVAL;
     }
   }
 
   if (!env->match_policy_vars(checked_vars)) {
     dout(1) << "missing policy condition" << dendl;
-    return false;
+    return -EINVAL;
   }
-  return true;
+  return 0;
 }
 
 

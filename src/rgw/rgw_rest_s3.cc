@@ -880,9 +880,10 @@ int RGWPostObj_ObjStore_S3::get_policy()
     post_policy.set_var_checked("policy");
     post_policy.set_var_checked("signature");
 
-    if (!post_policy.check(&env)) {
+    r = post_policy.check(&env);
+    if (r < 0) {
       ldout(s->cct, 0) << "policy check failed" << dendl;
-      return -EINVAL;
+      return r;
     }
 
     s->user = user_info;

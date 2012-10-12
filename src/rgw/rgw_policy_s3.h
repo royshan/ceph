@@ -48,7 +48,7 @@ public:
     var_checks.push_back(pair<string, string>(var, value));
   }
 
-  bool check(RGWPolicyEnv *env);
+  int check(RGWPolicyEnv *env);
   int from_json(bufferlist& bl);
 };
 #endif

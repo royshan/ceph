@@ -196,14 +196,6 @@ public:
 		    bdt.tm_year + 1900, bdt.tm_mon + 1, bdt.tm_mday,
 		    bdt.tm_hour, bdt.tm_min, bdt.tm_sec, usec());
   }
-
-  long epoch() {
-    struct tm bdt;
-    time_t tt = sec();
-    gmtime_r(&tt, &bdt);
-
-    return timegm(&bdt);
-  }
 };
 WRITE_CLASS_ENCODER(utime_t)
 
