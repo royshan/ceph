@@ -804,8 +804,10 @@ int RGWPostObj_ObjStore_S3::get_params()
   if (r < 0)
     return r;
 
-  min_len = post_policy.min_length;
-  max_len = post_policy.max_length;
+  if (post_policy) {
+    min_len = post_policy->min_length;
+    max_len = post_policy->max_length;
+  }
 
   return 0;
 }
@@ -870,17 +872,17 @@ int RGWPostObj_ObjStore_S3::get_policy()
 
     ldout(s->cct, 0) << "POST policy: " << decoded_policy.c_str() << dendl;
 
-    int r = post_policy.from_json(decoded_policy);
+    int r = post_policy->from_json(decoded_policy);
     if (r < 0) {
       ldout(s->cct, 0) << "failed to parse policy" << dendl;
       return -EINVAL;
     }
 
-    post_policy.set_var_checked("AWSAccessKeyId");
-    post_policy.set_var_checked("policy");
-    post_policy.set_var_checked("signature");
+    post_policy->set_var_checked("AWSAccessKeyId");
+    post_policy->set_var_checked("policy");
+    post_policy->set_var_checked("signature");
 
-    r = post_policy.check(&env);
+    r = post_policy->check(&env);
     if (r < 0) {
       ldout(s->cct, 0) << "policy check failed" << dendl;
       return r;

@@ -124,12 +124,12 @@ int RGWPolicy::add_condition(const string& op, const string& first, const string
   } else if (stringcasecmp(op, "starts-with") == 0) {
     cond = new RGWPolicyCondition_StrStartsWith;
   } else if (stringcasecmp(op, "content-length-range") == 0) {
-    uint64_t min, max;
-    int r = stringtoull(first, &min);
+    off_t min, max;
+    int r = stringtoll(first, &min);
     if (r < 0)
       return r;
 
-    r = stringtoull(second, &max);
+    r = stringtoll(second, &max);
     if (r < 0)
       return r;
 

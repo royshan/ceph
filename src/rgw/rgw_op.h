@@ -310,8 +310,8 @@ class RGWPostObj : public RGWOp {
   friend class RGWPutObjProcessor;
 
 protected:
-  int min_len;
-  int max_len;
+  off_t min_len;
+  off_t max_len;
   int ret;
   int len;
   off_t ofs;
@@ -329,6 +329,8 @@ public:
 
   virtual void init(RGWRados *store, struct req_state *s, RGWHandler *h) {
     RGWOp::init(store, s, h);
+    min_len = 0;
+    max_len = 5LL*1024*1024*1024;
     ret = 0;
     len = 0;
     ofs = 0;
