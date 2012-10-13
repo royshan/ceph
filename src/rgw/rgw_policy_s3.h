@@ -1,6 +1,8 @@
 #ifndef CEPH_RGW_POLICY_H
 #define CEPH_RGW_POLICY_H
 
+#include <limits.h>
+
 #include <map>
 #include <list>
 #include <string>
@@ -31,10 +33,10 @@ class RGWPolicy {
   std::map<std::string, bool, ltstr_nocase> checked_vars;
 
 public:
-  uint64_t min_length;
-  uint64_t max_length;
+  off_t min_length;
+  off_t max_length;
 
-  RGWPolicy() : expires(0), min_length(0), max_length((uint64_t)-1) {}
+  RGWPolicy() : expires(0), min_length(0), max_length(LLONG_MAX) {}
   ~RGWPolicy();
 
   int set_expires(const string& e);
