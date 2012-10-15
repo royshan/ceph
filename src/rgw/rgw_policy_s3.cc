@@ -199,13 +199,17 @@ int RGWPolicy::from_json(bufferlist& bl)
 {
   RGWJSONParser parser;
 
-  if (!parser.parse(bl.c_str(), bl.length()))
+  if (!parser.parse(bl.c_str(), bl.length())) {
+    dout(0) << "malformed json" << dendl;
     return -EINVAL;
+  }
 
   // as no time was included in the request, we hope that the user has included a short timeout
   JSONObjIter iter = parser.find_first("expiration");
-  if (iter.end())
+  if (iter.end()) {
+    dout(0) << "expiration not found" << dendl;
     return -EINVAL; // change to a "no expiration" error following S3
+  }
 
   JSONObj *obj = *iter;
   expiration_str = obj->get_data();
@@ -214,8 +218,10 @@ int RGWPolicy::from_json(bufferlist& bl)
     return r;
 
   iter = parser.find_first("conditions");
-  if (iter.end())
+  if (iter.end()) {
+    dout(0) << "conditions not found" << dendl;
     return -EINVAL; // change to a "no conditions" error following S3
+  }
 
   obj = *iter;
 
