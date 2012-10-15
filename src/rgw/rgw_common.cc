@@ -222,7 +222,7 @@ bool parse_rfc2616(const char *s, struct tm *t)
 bool parse_iso8601(const char *s, struct tm *t)
 {
   memset(t, 0, sizeof(*t));
-  const char *p = strptime(s, "%Y-%m-%dT%T.", t);
+  const char *p = strptime(s, "%Y-%m-%dT%T", t);
   if (!p) {
     dout(0) << "parse_iso8601 failed" << dendl;
     return false;
@@ -230,10 +230,14 @@ bool parse_iso8601(const char *s, struct tm *t)
 
   string str;
   trim_whitespace(p, str);
-  if (str.size() != 4) {
+  if (str.size() == 1 && str[0] == 'Z')
+    return true;
+
+  if (str.size() != 5) {
     return false;
   }
-  if (str[str.size() - 1] != 'Z')
+  if (str[0] != '.' ||
+      str[str.size() - 1] != 'Z')
     return false;
 
   uint32_t ms;
