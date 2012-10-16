@@ -840,8 +840,10 @@ void FileJournal::queue_completions_thru(uint64_t seq)
     if (logger) {
       logger->finc(l_os_j_lat, lat);
     }
-    if (completions.front().finish)
+    if (completions.front().finish) {
+      logger->inc(l_os_j_finisher_ops);
       finisher->queue(completions.front().finish);
+    }
     if (completions.front().tracked_op)
       completions.front().tracked_op->mark_event("journaled_completion_queued");
     completions.pop_front();
