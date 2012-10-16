@@ -778,6 +778,8 @@ int RGWPostObj_ObjStore_S3::get_params()
 
   rebuild_key(s->object_str);
 
+  env.add_var("key", s->object_str);
+
   part_str("Content-Type", &content_type);
   env.add_var("Content-Type", content_type);
 
@@ -834,7 +836,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
     ret = rgw_get_user_info_by_access_key(store, s3_access_key, user_info);
     if (ret < 0) {
       ldout(s->cct, 0) << "User lookup failed!" << dendl;
-      return -EINVAL;
+      return -EACCES;
     }
 
     map<string, RGWAccessKey> access_keys  = user_info.access_keys;
@@ -855,7 +857,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
       ldout(s->cct, 0) << "Signature verification failed!" << dendl;
       ldout(s->cct, 0) << "expected: " << signature_str.c_str() << dendl;
       ldout(s->cct, 0) << "got: " << encoded_hmac.c_str() << dendl;
-      return -EINVAL;
+      return -EACCES;
     }
     ldout(s->cct, 0) << "Successful Signature Verification!" << dendl;
     bufferlist decoded_policy;
@@ -948,19 +950,93 @@ int RGWPostObj_ObjStore_S3::get_data(bufferlist& bl)
   return bl.length();
 }
 
+static void escape_char(char c, string& dst)
+{
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%%%.2X", (unsigned int)c);
+  dst.append(buf);
+}
+
+static bool char_needs_url_encoding(char c)
+{
+  if (c < 0x20 || c >= 0x7f)
+    return true;
+
+  switch (c) {
+    case 0x20:
+    case 0x22:
+    case 0x23:
+    case 0x25:
+    case 0x26:
+    case 0x2B:
+    case 0x2C:
+    case 0x2F:
+    case 0x3A:
+    case 0x3B:
+    case 0x3C:
+    case 0x3E:
+    case 0x3D:
+    case 0x3F:
+    case 0x40:
+    case 0x5B:
+    case 0x5D:
+    case 0x5C:
+    case 0x5E:
+    case 0x60:
+    case 0x7B:
+    case 0x7D:
+      return true;
+  }
+  return false;
+}
+
+static void url_escape(const string& src, string& dst)
+{
+  const char *p = src.c_str();
+  for (unsigned i = 0; i < src.size(); i++, p++) {
+    if (char_needs_url_encoding(*p)) {
+      escape_char(*p, dst);
+      continue;
+    }
+
+    dst.append(p, 1);
+  }
+}
+
 void RGWPostObj_ObjStore_S3::send_response()
 {
   if (ret == 0 && parts.count("success_action_redirect")) {
-    string success_action_redirect;
+    string redirect;
 
-    part_str("success_action_redirect", &success_action_redirect);
+    part_str("success_action_redirect", &redirect);
 
-    int r = check_utf8(success_action_redirect.c_str(), success_action_redirect.size());
+    string bucket;
+    string key;
+    string etag_str = "\"";
+
+    etag_str.append(etag);
+    etag_str.append("\"");
+
+    string etag_url;
+
+    url_escape(s->bucket_name, bucket);
+    url_escape(s->object_str, key);
+    url_escape(etag_str, etag_url);
+
+    
+    redirect.append("?bucket=");
+    redirect.append(bucket);
+    redirect.append("&key=");
+    redirect.append(key);
+    redirect.append("&etag=");
+    redirect.append(etag_url);
+
+    int r = check_utf8(redirect.c_str(), redirect.size());
     if (r < 0) {
       ret = r;
       goto done;
     }
-    dump_redirect(s, success_action_redirect);
+    dump_redirect(s, redirect);
     ret = STATUS_REDIRECT;
   } else if (ret == 0 && parts.count("success_action_status")) {
     string status_string;
@@ -984,6 +1060,8 @@ void RGWPostObj_ObjStore_S3::send_response()
 	ret = STATUS_NO_CONTENT;
 	break;
     }
+  } else if (!ret) {
+    ret = STATUS_NO_CONTENT;
   }
 
 done:

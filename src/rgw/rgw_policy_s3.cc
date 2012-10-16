@@ -126,12 +126,16 @@ int RGWPolicy::add_condition(const string& op, const string& first, const string
   } else if (stringcasecmp(op, "content-length-range") == 0) {
     off_t min, max;
     int r = stringtoll(first, &min);
-    if (r < 0)
+    if (r < 0) {
+      dout(0) << "bad content-length-range param: " << first << dendl;
       return r;
+    }
 
     r = stringtoll(second, &max);
-    if (r < 0)
+    if (r < 0) {
+      dout(0) << "bad content-length-range param: " << second << dendl;
       return r;
+    }
 
     if (min > min_length)
       min_length = min;
@@ -142,8 +146,10 @@ int RGWPolicy::add_condition(const string& op, const string& first, const string
     return 0;
   }
 
-  if (!cond)
+  if (!cond) {
+    dout(0) << "invalid condition: " << op << dendl;
     return -EINVAL;
+  }
 
   cond->set_vals(first, second);
   
@@ -159,7 +165,6 @@ int RGWPolicy::check(RGWPolicyEnv *env)
     dout(0) << "NOTICE: policy calculated as expired: " << expiration_str << dendl;
     return -EACCES; // change to condition about expired policy following S3
   }
-dout(0) << __FILE__ << ":" << __LINE__ << " expires=" << expires << " now=" << now << dendl;
 
   list<pair<string, string> >::iterator viter;
   for (viter = var_checks.begin(); viter != var_checks.end(); ++viter) {
@@ -168,14 +173,14 @@ dout(0) << __FILE__ << ":" << __LINE__ << " expires=" << expires << " now=" << n
     const string& check_val = p.second;
     string val;
     if (!env->get_var(name, val))
-      return -EINVAL;
+      return -EACCES;
 
     set_var_checked(name);
 
     dout(20) << "comparing " << name << " [" << val << "], " << check_val << dendl;
     if (val.compare(check_val) != 0) {
       dout(1) << "policy check failed, val=" << val << " != " << check_val << dendl;
-      return -EINVAL;
+      return -EACCES;
     }
   }
 
@@ -183,13 +188,13 @@ dout(0) << __FILE__ << ":" << __LINE__ << " expires=" << expires << " now=" << n
   for (citer = conditions.begin(); citer != conditions.end(); ++citer) {
     RGWPolicyCondition *cond = *citer;
     if (!cond->check(env, checked_vars)) {
-      return -EINVAL;
+      return -EACCES;
     }
   }
 
   if (!env->match_policy_vars(checked_vars)) {
     dout(1) << "missing policy condition" << dendl;
-    return -EINVAL;
+    return -EACCES;
   }
   return 0;
 }
