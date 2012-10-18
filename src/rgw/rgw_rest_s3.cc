@@ -705,8 +705,10 @@ int RGWPostObj_ObjStore_S3::get_params()
 
   parse_params(req_content_type_str, req_content_type, params);
 
-  if (req_content_type.compare("multipart/form-data") != 0)
+  if (req_content_type.compare("multipart/form-data") != 0) {
+    err_msg = "Request Content-Type is not multipart/form-data";
     return -EINVAL;
+  }
 
   if (s->cct->_conf->subsys.should_gather(ceph_subsys_rgw, 20)) {
     ldout(s->cct, 20) << "request content_type_str=" << req_content_type_str << dendl;
@@ -721,8 +723,10 @@ int RGWPostObj_ObjStore_S3::get_params()
   env.add_var("bucket", s->bucket.name);
 
   map<string, string>::iterator iter = params.find("boundary");
-  if (iter == params.end())
+  if (iter == params.end()) {
+    err_msg = "Missing multipart boundary specification";
     return -EINVAL;
+  }
 
   // create the boundary
   boundary = "--";
@@ -749,8 +753,10 @@ int RGWPostObj_ObjStore_S3::get_params()
       }
     }
 
-    if (done) /* unexpected here */
+    if (done) { /* unexpected here */
+      err_msg = "Malformed request";
       return -EINVAL;
+    }
 
     if (stringcasecmp(part.name, "file") == 0) { /* beginning of data transfer */
       struct post_part_field& field = part.fields["Content-Disposition"];
@@ -766,6 +772,7 @@ int RGWPostObj_ObjStore_S3::get_params()
     bool boundary;
     r = read_data(part.data, RGW_MAX_CHUNK_SIZE, &boundary, &done);
     if (!boundary) {
+      err_msg = "Couldn't find boundary";
       return -EINVAL;
     }
     parts[part.name] = part;
@@ -773,8 +780,10 @@ int RGWPostObj_ObjStore_S3::get_params()
     env.add_var(part.name, part_str);
   } while (!done);
 
-  if (!part_str("key", &s->object_str))
+  if (!part_str("key", &s->object_str)) {
+    err_msg = "Key not specified";
     return -EINVAL;
+  }
 
   rebuild_key(s->object_str);
 
@@ -823,11 +832,13 @@ int RGWPostObj_ObjStore_S3::get_policy()
     string s3_access_key;
     if (!part_str("AWSAccessKeyId", &s3_access_key)) {
       ldout(s->cct, 0) << "No S3 access key found!" << dendl;
+      err_msg = "Missing access key";
       return -EINVAL;
     }
     string signature_str;
     if (!part_str("signature", &signature_str)) {
       ldout(s->cct, 0) << "No signature found!" << dendl;
+      err_msg = "Missing signature";
       return -EINVAL;
     }
 
@@ -836,6 +847,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
     ret = rgw_get_user_info_by_access_key(store, s3_access_key, user_info);
     if (ret < 0) {
       ldout(s->cct, 0) << "User lookup failed!" << dendl;
+      err_msg = "Bad access key / signature";
       return -EACCES;
     }
 
@@ -857,6 +869,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
       ldout(s->cct, 0) << "Signature verification failed!" << dendl;
       ldout(s->cct, 0) << "expected: " << signature_str.c_str() << dendl;
       ldout(s->cct, 0) << "got: " << encoded_hmac.c_str() << dendl;
+      err_msg = "Bad access key / signature";
       return -EACCES;
     }
     ldout(s->cct, 0) << "Successful Signature Verification!" << dendl;
@@ -865,6 +878,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
       decoded_policy.decode_base64(encoded_policy);
     } catch (buffer::error& err) {
       ldout(s->cct, 0) << "failed to decode_base64 policy" << dendl;
+      err_msg = "Could not decode policy";
       return -EINVAL;
     }
 
@@ -872,8 +886,11 @@ int RGWPostObj_ObjStore_S3::get_policy()
 
     ldout(s->cct, 0) << "POST policy: " << decoded_policy.c_str() << dendl;
 
-    int r = post_policy.from_json(decoded_policy);
+    int r = post_policy.from_json(decoded_policy, err_msg);
     if (r < 0) {
+      if (err_msg.empty()) {
+	err_msg = "Failed to parse policy";
+      }
       ldout(s->cct, 0) << "failed to parse policy" << dendl;
       return -EINVAL;
     }
@@ -882,8 +899,11 @@ int RGWPostObj_ObjStore_S3::get_policy()
     post_policy.set_var_checked("policy");
     post_policy.set_var_checked("signature");
 
-    r = post_policy.check(&env);
+    r = post_policy.check(&env, err_msg);
     if (r < 0) {
+      if (err_msg.empty()) {
+	err_msg = "Policy check failed";
+      }
       ldout(s->cct, 0) << "policy check failed" << dendl;
       return r;
     }
@@ -898,8 +918,10 @@ int RGWPostObj_ObjStore_S3::get_policy()
 
   RGWAccessControlPolicy_S3 s3policy(s->cct);
   ldout(s->cct, 20) << "canned_acl=" << canned_acl << dendl;
-  if (!s3policy.create_canned(s->user.user_id, "", canned_acl))
+  if (!s3policy.create_canned(s->user.user_id, "", canned_acl)) {
+    err_msg = "Bad canned ACLs";
     return -EINVAL;
+  }
 
   policy = s3policy;
 
@@ -1073,6 +1095,7 @@ done:
     s->formatter->dump_string("Key", s->object_str.c_str());
     s->formatter->close_section();
   }
+  s->err.message = err_msg;
   set_req_state_err(s, ret);
   dump_errno(s);
   dump_content_length(s, s->formatter->get_len());

@@ -227,7 +227,6 @@ bool parse_iso8601(const char *s, struct tm *t)
     dout(0) << "parse_iso8601 failed" << dendl;
     return false;
   }
-
   string str;
   trim_whitespace(p, str);
   if (str.size() == 1 && str[0] == 'Z')
@@ -241,7 +240,7 @@ bool parse_iso8601(const char *s, struct tm *t)
     return false;
 
   uint32_t ms;
-  int r = stringtoul(str.substr(0, 3), &ms);
+  int r = stringtoul(str.substr(1, 3), &ms);
   if (r < 0)
     return false;
 
